@@ -1,0 +1,7 @@
+GAIT ANALYSIS MASTER REPORT
+==============================
+Patient Name: jojo
+Patient Age: 30
+Symmetry Score: 99.85%
+Main Phase: Stance Phase
+Status: Excellent Symmetry
