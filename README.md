@@ -96,7 +96,27 @@ python compare.py before_gait_data.csv after_gait_data.csv --out ./results
 
 # Run the test suite:
 pytest
+
+# Validate measurement accuracy against known ground truth:
+python validate.py
 ```
+
+## ✅ Result Validation
+`validate.py` is a **synthetic accuracy harness**: it generates a walking motion
+with *known* joint angles, reconstructs 3D skeleton landmarks that realize those
+angles (forward kinematics), pushes them through the same measurement code the
+real pipeline uses, and compares what it recovers against the truth. It reports:
+
+- **Per-joint angle error** (MAE / RMSE) — validates the angle math is exact
+- **Step-count recovery** — validates phase/heel-strike detection
+- **Symmetry recovery** — validates the symmetry metric against an independently
+  computed expected value
+
+These checks also run under `pytest` (`tests/test_validation.py`). Note this
+validates the *computational pipeline*, not MediaPipe's accuracy versus real
+motion capture — that would require a labelled mocap dataset. Also note the
+current symmetry metric is **mean-based**, so it captures offset asymmetry but
+not amplitude/ROM-only asymmetry.
 
 ## ⚠️ Disclaimer
 This is a research/educational tool and is **not** a certified medical device.
