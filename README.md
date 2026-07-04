@@ -40,7 +40,16 @@ python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 
 pip install -r requirements.txt
+
+# Download the pose model (required — the MediaPipe Tasks API needs it):
+curl -L -o pose_landmarker.task \
+  https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
 ```
+
+> **Note:** This project uses the modern **MediaPipe Tasks API** (`PoseLandmarker`).
+> The legacy `mp.solutions.pose` API was removed in recent MediaPipe releases, so
+> the `pose_landmarker.task` model file above is required. Place it next to
+> `gait_analysis.py`, or point to it with the `POSE_MODEL_PATH` environment variable.
 
 ## ▶️ Usage
 ```bash

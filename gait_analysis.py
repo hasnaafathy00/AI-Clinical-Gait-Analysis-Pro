@@ -16,6 +16,41 @@ except ImportError:  # progress bar is optional
     def tqdm(iterable=None, **kwargs):
         return iterable if iterable is not None else range(0)
 
+# MediaPipe Tasks API (the legacy mp.solutions API was removed in recent builds).
+from mediapipe.tasks import python as mp_tasks
+from mediapipe.tasks.python import vision as mp_vision
+
+# 33-point BlazePose skeleton connections used to draw the overlay (face omitted).
+POSE_CONNECTIONS = [
+    (11, 12), (11, 23), (12, 24), (23, 24),       # torso
+    (11, 13), (13, 15), (12, 14), (14, 16),       # arms
+    (23, 25), (25, 27), (27, 29), (29, 31), (27, 31),  # left leg
+    (24, 26), (26, 28), (28, 30), (30, 32), (28, 32),  # right leg
+]
+
+
+def find_pose_model():
+    """Locate the pose_landmarker.task model file, or None if unavailable."""
+    env = os.environ.get("POSE_MODEL_PATH")
+    here = os.path.dirname(os.path.abspath(__file__))
+    for c in ([env] if env else []) + [
+        os.path.join(here, "pose_landmarker.task"),
+        os.path.join(os.getcwd(), "pose_landmarker.task"),
+    ]:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+def draw_pose(image, norm_landmarks, w, h):
+    """Draw the skeleton overlay from normalized landmarks onto a BGR frame."""
+    pts = [(int(lm.x * w), int(lm.y * h)) for lm in norm_landmarks]
+    for a, b in POSE_CONNECTIONS:
+        if a < len(pts) and b < len(pts):
+            cv2.line(image, pts[a], pts[b], (255, 255, 255), 2)
+    for x, y in pts:
+        cv2.circle(image, (x, y), 3, (0, 200, 0), -1)
+
 # --- 0. Cross-platform helpers ---------------------------------------------
 
 def beep():
@@ -406,9 +441,18 @@ def main():
     if not display:
         matplotlib.use("Agg")  # headless backend
 
-    mp_pose = mp.solutions.pose
-    pose = mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7)
-    mp_drawing = mp.solutions.drawing_utils
+    model_path = find_pose_model()
+    if not model_path:
+        sys.exit("❌ pose_landmarker.task model not found. Place it next to "
+                 "gait_analysis.py or set POSE_MODEL_PATH.")
+    landmarker = mp_vision.PoseLandmarker.create_from_options(
+        mp_vision.PoseLandmarkerOptions(
+            base_options=mp_tasks.BaseOptions(model_asset_path=model_path),
+            running_mode=mp_vision.RunningMode.VIDEO,
+            min_pose_detection_confidence=0.7,
+            min_tracking_confidence=0.7,
+        )
+    )
     data_log = []
 
     cap = cv2.VideoCapture(args.video)
@@ -428,6 +472,8 @@ def main():
     writer = None             # annotated-video writer (lazy-init on first frame)
     video_path = os.path.join(args.out, f"{safe_name}_annotated.mp4")
     detected_frames = 0
+    frame_idx = 0
+    last_ts = -1              # ensure strictly increasing timestamps for VIDEO mode
 
     progress = tqdm(total=total_frames or None, unit="frame", desc="Analysing")
     while cap.isOpened():
@@ -442,14 +488,21 @@ def main():
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(video_path, fourcc, fps, (w, h))
 
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        res = pose.process(image)
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        # Detect the pose with the Tasks API (VIDEO mode needs a rising timestamp).
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        ts_ms = int(frame_idx * 1000.0 / fps)
+        if ts_ms <= last_ts:
+            ts_ms = last_ts + 1
+        last_ts = ts_ms
+        frame_idx += 1
+        res = landmarker.detect_for_video(mp_image, ts_ms)
+        image = frame  # draw the overlay directly on the BGR frame
 
         if res.pose_landmarks and res.pose_world_landmarks:
             detected_frames += 1
-            wlm = res.pose_world_landmarks.landmark
-            mp_drawing.draw_landmarks(image, res.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            wlm = res.pose_world_landmarks[0]
+            draw_pose(image, res.pose_landmarks[0], w, h)
 
             # Bilateral 3D angle calculations (NaN when a joint is occluded).
             lk = joint_angle(wlm, 23, 25, 27)
@@ -496,6 +549,7 @@ def main():
     if not total_frames:
         total_frames = detected_frames
     cap.release()
+    landmarker.close()
     if writer is not None:
         writer.release()
     if display:
