@@ -1,0 +1,12 @@
+opencv-python>=4.8
+mediapipe>=0.10          # uses the Tasks API; needs pose_landmarker.task (see README)
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+tqdm>=4.65
+
+# Optional — only needed for the web UI (app.py):
+streamlit>=1.30
+
+# Optional — only needed to run the test suite:
+pytest>=7.0

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Generated analysis outputs
+*_Final_Master_Report.txt
+*_Full_Grafts.png
+*_Normalized_Cycles.png
+*_gait_data.csv
+*_Report.pdf
+*_annotated.mp4
+Comparison_Report.txt
+Comparison_Chart.png
+results/
+
+# Test cache
+.pytest_cache/
+
+# MediaPipe pose model (large binary — download via README instructions)
+pose_landmarker.task
+*.task
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
